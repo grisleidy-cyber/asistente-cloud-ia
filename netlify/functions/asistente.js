@@ -12,6 +12,13 @@ Reglas:
 - Si la pregunta no tiene relación con libros o con el catálogo, responde que solo puedes ayudar con el catálogo de la biblioteca.
 - Responde en español, de forma breve (máximo 120 palabras) y explica en una frase por qué recomiendas cada libro.`;
 
+const MENSAJES_GEMINI = {
+  limite: "El asistente está recibiendo muchas consultas. Espera unos segundos y vuelve a intentarlo.",
+  ocupado: "El servicio de IA está saturado en este momento. Intenta de nuevo en unos segundos.",
+  vacio: "El asistente no pudo generar una respuesta. Prueba con otra pregunta.",
+  clave: "El asistente no está configurado correctamente (revisa la clave de Gemini).",
+};
+
 const textoCatalogo = (libros) =>
   libros
     .map(
@@ -84,8 +91,8 @@ exports.handler = async (event) => {
   try {
     resultado = await preguntarGemini({ instruccion: INSTRUCCION, pregunta: prompt });
   } catch (e) {
-    console.error("gemini:", e.message);
-    return json(502, { error: "El asistente no pudo procesar la solicitud." });
+    console.error("gemini:", e.tipo, e.message);
+    return json(502, { error: MENSAJES_GEMINI[e.tipo] || "El asistente no pudo procesar la solicitud." });
   }
 
   // 5) Historial (si falla, la respuesta igual se entrega)

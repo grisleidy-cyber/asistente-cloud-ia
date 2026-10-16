@@ -809,7 +809,7 @@ td.titulo { font-weight: 600; }
 /* =========================================================
    Chatbot flotante (Asistente IA)
    ========================================================= */
-.fab-zona { position: fixed; right: 24px; bottom: 24px; z-index: 40; display: flex; align-items: center; gap: 12px; }
+.fab-zona { position: fixed; right: 24px; bottom: 84px; z-index: 40; display: flex; align-items: center; gap: 12px; }
 .fab-tip {
   padding: 8px 14px; border-radius: 999px; background: #fff; color: #6b6a85;
   font-size: 14px; font-weight: 500; box-shadow: 0 6px 18px rgba(30, 20, 90, 0.14);
@@ -827,7 +827,7 @@ td.titulo { font-weight: 600; }
 .fab.abierto { transform: rotate(-8deg); }
 
 .chat {
-  position: fixed; right: 24px; bottom: 100px; z-index: 40;
+  position: fixed; right: 24px; bottom: 160px; z-index: 40;
   width: 380px; max-width: calc(100vw - 28px); height: 540px; max-height: calc(100vh - 124px);
   display: flex; flex-direction: column; overflow: hidden;
   background: #fff; border-radius: 22px; box-shadow: 0 24px 60px rgba(30, 20, 90, 0.28);
@@ -871,7 +871,7 @@ td.titulo { font-weight: 600; }
 .chat-form button:disabled { opacity: 0.55; cursor: progress; }
 
 @media (max-width: 760px) {
-  .fab-zona { right: 16px; bottom: 16px; }
-  .chat { right: 14px; bottom: 92px; width: calc(100vw - 28px); }
+  .fab-zona { right: 16px; bottom: 76px; }
+  .chat { right: 14px; bottom: 152px; width: calc(100vw - 28px); }
 }
 @media (prefers-reduced-motion: reduce) { .burbuja.escribiendo span { animation: none; } .fab, .fab-tip, .chat, .burbuja { animation: none; } }

@@ -89,33 +89,82 @@ function modelos() {
   return [...new Set(lista.filter(Boolean))];
 }
 
+// Netlify corta la función a los 10 s: solo se reintenta si queda tiempo suficiente.
+const LIMITE_REINTENTO_MS = 4500;
+const INTENTOS_POR_MODELO = 2;
+
+const esperar = (ms) => new Promise((resolver) => setTimeout(resolver, ms));
+
+function errorGemini(tipo, mensaje) {
+  const e = new Error(mensaje);
+  e.tipo = tipo;
+  return e;
+}
+
 async function preguntarGemini({ instruccion, pregunta }) {
-  if (!process.env.GEMINI_API_KEY) throw new Error("Falta la variable GEMINI_API_KEY");
-  let ultimo = "";
+  if (!process.env.GEMINI_API_KEY) throw errorGemini("clave", "Falta la variable GEMINI_API_KEY");
+  const inicio = Date.now();
+  let llamadas = 0;
+  let ultimo = null;
+
   for (const modelo of modelos()) {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: instruccion }] },
-          contents: [{ role: "user", parts: [{ text: pregunta }] }],
-          generationConfig: { temperature: 0.4, maxOutputTokens: 800 },
-        }),
+    for (let intento = 1; intento <= INTENTOS_POR_MODELO; intento++) {
+      const transcurrido = Date.now() - inicio;
+      if (llamadas > 0 && transcurrido >= LIMITE_REINTENTO_MS) {
+        throw ultimo || errorGemini("ocupado", "Se agotó el tiempo para consultar Gemini");
       }
-    );
-    if (r.status === 404) {
-      ultimo = `Modelo ${modelo} no disponible`;
-      continue;
+      llamadas++;
+
+      let r;
+      try {
+        r = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: instruccion }] },
+              contents: [{ role: "user", parts: [{ text: pregunta }] }],
+              generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+            }),
+            signal: AbortSignal.timeout(Math.max(1500, 6800 - transcurrido)),
+          }
+        );
+      } catch (e) {
+        // Error de red o timeout
+        ultimo = errorGemini("ocupado", `Gemini (${modelo}) sin respuesta: ${e.message}`);
+        await esperar(700);
+        continue;
+      }
+
+      if (r.status === 404) {
+        ultimo = errorGemini("modelo", `Modelo ${modelo} no disponible`);
+        break; // siguiente modelo
+      }
+
+      if (r.status === 429 || r.status >= 500) {
+        const detalle = (await r.text()).slice(0, 200);
+        ultimo = errorGemini(r.status === 429 ? "limite" : "ocupado", `Gemini (${modelo}) respondió ${r.status}: ${detalle}`);
+        if (intento === 1) await esperar(r.status === 429 ? 1500 : 800);
+        continue;
+      }
+
+      if (!r.ok) {
+        const detalle = (await r.text()).slice(0, 200);
+        const tipo = [400, 401, 403].includes(r.status) ? "clave" : "http";
+        throw errorGemini(tipo, `Gemini (${modelo}) respondió ${r.status}: ${detalle}`);
+      }
+
+      const data = await r.json();
+      const texto = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
+      if (!texto) {
+        ultimo = errorGemini("vacio", `Gemini (${modelo}) no devolvió texto`);
+        continue;
+      }
+      return { texto, modelo };
     }
-    if (!r.ok) throw new Error(`Gemini respondió ${r.status}: ${(await r.text()).slice(0, 200)}`);
-    const data = await r.json();
-    const texto = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
-    if (!texto) throw new Error("Gemini no devolvió texto");
-    return { texto, modelo };
   }
-  throw new Error(ultimo || "No se pudo consultar Gemini");
+  throw ultimo || errorGemini("ocupado", "No se pudo consultar Gemini");
 }
 
 module.exports = { getSheets, json, leerLibros, leerHistorial, guardarHistorial, preguntarGemini };
